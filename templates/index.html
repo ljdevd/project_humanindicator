@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <title>Human Indicator</title>
     <style>
         body {
@@ -13,9 +13,9 @@
         h1 {
             text-align: center;
         }
-        #chart-container {
+        #chart {
             width: 100%;
-            max-width: 800px;
+            height: 600px;
             margin: auto;
         }
         .controls {
@@ -40,116 +40,125 @@
     <h1>NQ vs Human Indicator</h1>
     <div class="controls">
         <select id="toggleSelect" onchange="toggleFromDropdown(this.value)">
-            <option value="stockPrice" selected>Toggle Stock Price</option>
-            <option value="positiveRatio">Toggle Positive Ratio</option>
-            <option value="movingAverage">Toggle 7-Day Moving Average</option>
+            <option value="0" selected>Toggle Stock Price</option>
+            <option value="1">Toggle Positive Ratio</option>
+            <option value="2">Toggle 7-Day Moving Average</option>
         </select>
     </div>
-    <div id="chart-container">
-        <canvas id="myChart"></canvas>
-    </div>
+    <div id="chart"></div>
 
     <script>
-        let chart; // Chart.js 인스턴스
-
-        // 차트를 초기화하는 함수
-        function initializeChart(stockData, sentimentData) {
-            const ctx = document.getElementById('myChart').getContext('2d');
-
-            const stockDates = stockData.map(d => d.Date);
-            const stockCloses = stockData.map(d => d.Close);
-            const sentimentDates = sentimentData.map(d => d.date);
-            const positiveRatio = sentimentData.map(d => d.positive_ratio);
-            const movingAverage = calculateMovingAverage(positiveRatio, 7);
-
-            chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: stockDates,
-                    datasets: [
-                        {
-                            label: 'Stock Close Price',
-                            data: stockCloses,
-                            borderColor: 'blue',
-                            backgroundColor: 'transparent',
-                            hidden: false
-                        },
-                        {
-                            label: 'Positive Ratio',
-                            data: positiveRatio,
-                            borderColor: 'orange',
-                            backgroundColor: 'transparent',
-                            hidden: false
-                        },
-                        {
-                            label: '7-Day Moving Average',
-                            data: movingAverage,
-                            borderColor: 'green',
-                            borderDash: [5, 5],
-                            backgroundColor: 'transparent',
-                            hidden: false
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'top'
-                        }
-                    },
-                    scales: {
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Date'
-                            }
-                        },
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'Values'
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
         // 이동 평균 계산 함수
-        function calculateMovingAverage(data, windowSize) {
+        function movingAverage(data, window_size) {
             let averages = [];
             for (let i = 0; i < data.length; i++) {
-                if (i < windowSize - 1) {
+                if (i < window_size - 1) {
                     averages.push(null);
-                } else {
-                    const slice = data.slice(i - windowSize + 1, i + 1);
-                    const sum = slice.reduce((acc, val) => acc + val, 0);
-                    averages.push(sum / windowSize);
+                    continue;
                 }
+                let window = data.slice(i - window_size + 1, i + 1);
+                let sum = window.reduce((acc, val) => acc + val, 0);
+                averages.push(sum / window_size);
             }
             return averages;
         }
 
-        // 드롭다운 변경 시 호출되는 함수
-        function toggleFromDropdown(datasetKey) {
-            const datasetIndex = {
-                stockPrice: 0,
-                positiveRatio: 1,
-                movingAverage: 2
-            }[datasetKey];
+        let visibility = [true, true, true]; // 트레이스 가시성 상태
+        let stockTrace, sentimentTrace, MA7Trace;
 
-            chart.data.datasets[datasetIndex].hidden = !chart.data.datasets[datasetIndex].hidden;
-            chart.update();
+        // Fetch stock data
+        fetch('/api/data')
+            .then(response => response.json())
+            .then(stockData => {
+                const stockDates = stockData.map(d => d.Date);
+                const stockCloses = stockData.map(d => d.Close);
+
+                // Fetch sentiment data
+                fetch('/api/sentiment-data')
+                    .then(response => response.json())
+                    .then(sentimentData => {
+                        sentimentData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                        const sentimentDates = sentimentData.map(d => d.date);
+                        const PositiveRatio = sentimentData.map(d => d.positive_ratio);
+                        const topWordsWithTitles = sentimentData.map(d => d.strongest_title_with_top_word);
+
+                        const MA7 = movingAverage(PositiveRatio, 7);
+
+                        // Create traces
+                        stockTrace = {
+                            x: stockDates,
+                            y: stockCloses,
+                            type: 'scatter',
+                            mode: 'lines',
+                            name: 'Stock Close Price',
+                            line: { color: 'blue' },
+                            yaxis: 'y1'
+                        };
+
+                        sentimentTrace = {
+                            x: sentimentDates,
+                            y: PositiveRatio,
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            name: 'Positive Ratio',
+                            line: { color: 'orange' },
+                            yaxis: 'y2',
+                            text: topWordsWithTitles,
+                            hovertemplate: `
+                                <b>Positive Ratio</b><br>
+                                Date: %{x}<br>
+                                Ratio: %{y}%<br>
+                                Top Word & Title: %{text}<extra></extra>
+                            `,
+                            hoverlabel: {
+                                bgcolor: 'white',
+                                font: { size: 14, color: 'black' }
+                            }
+                        };
+
+                        MA7Trace = {
+                            x: sentimentDates,
+                            y: MA7,
+                            type: 'scatter',
+                            mode: 'lines',
+                            name: '7-Day Moving Average',
+                            line: { color: 'green', dash: 'dash' },
+                            yaxis: 'y2'
+                        };
+
+                        const layout = {
+                            title: 'NQ vs Sentiment Analysis',
+                            xaxis: { title: 'Date/Time' },
+                            yaxis: {
+                                title: 'Stock Close Price',
+                                titlefont: { color: 'blue' },
+                                tickfont: { color: 'blue' }
+                            },
+                            yaxis2: {
+                                title: 'Positive Ratio',
+                                titlefont: { color: 'orange' },
+                                tickfont: { color: 'orange' },
+                                overlaying: 'y',
+                                side: 'right'
+                            },
+                            legend: { orientation: 'h' },
+                            hovermode: 'x unified',
+                            responsive: true // 반응형 활성화
+                        };
+
+                        Plotly.newPlot('chart', [stockTrace, sentimentTrace, MA7Trace], layout);
+                    })
+                    .catch(error => console.error('Error fetching sentiment data:', error));
+            })
+            .catch(error => console.error('Error fetching stock data:', error));
+
+        // Trace 토글 함수 (드롭다운용)
+        function toggleFromDropdown(traceIndex) {
+            const index = parseInt(traceIndex);
+            visibility[index] = !visibility[index];
+            Plotly.restyle('chart', { visible: visibility[index] ? true : 'legendonly' }, [index]);
         }
-
-        // 데이터 로드 및 차트 초기화
-        Promise.all([
-            fetch('/api/data').then(res => res.json()),
-            fetch('/api/sentiment-data').then(res => res.json())
-        ]).then(([stockData, sentimentData]) => {
-            initializeChart(stockData, sentimentData);
-        }).catch(error => console.error('Error loading data:', error));
     </script>
 </body>
 </html>
