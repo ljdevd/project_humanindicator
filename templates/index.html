@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <title>Human indicator</title>
+    <title>Human Indicator</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 40px;
+            margin: 20px;
         }
         h1 {
             text-align: center;
@@ -22,19 +22,28 @@
             text-align: center;
             margin-bottom: 20px;
         }
-        .controls button {
-            margin: 0 10px;
+        .controls select {
             padding: 10px 20px;
             font-size: 16px;
+            margin: 10px 5px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+        }
+        .controls select:focus {
+            outline: none;
+            border-color: #007BFF;
         }
     </style>
 </head>
 <body>
-    <h1>NQ vs Human indicator</h1>
+    <h1>NQ vs Human Indicator</h1>
     <div class="controls">
-        <button id="toggleStock">Toggle Stock Price</button>
-        <button id="toggleSentiment">Toggle Positive Ratio</button>
-        <button id="toggleMA7">Toggle 7-Day Moving Average</button>
+        <select id="toggleSelect" onchange="toggleFromDropdown(this.value)">
+            <option value="0" selected>Toggle Stock Price</option>
+            <option value="1">Toggle Positive Ratio</option>
+            <option value="2">Toggle 7-Day Moving Average</option>
+        </select>
     </div>
     <div id="chart"></div>
 
@@ -104,10 +113,7 @@
                             `,
                             hoverlabel: {
                                 bgcolor: 'white',
-                                font: {
-                                    size: 14,
-                                    color: 'black'
-                                }
+                                font: { size: 14, color: 'black' }
                             }
                         };
 
@@ -137,24 +143,21 @@
                                 side: 'right'
                             },
                             legend: { orientation: 'h' },
-                            hovermode: 'x unified'
+                            hovermode: 'x unified',
+                            responsive: true // 반응형 활성화
                         };
 
                         Plotly.newPlot('chart', [stockTrace, sentimentTrace, MA7Trace], layout);
-
-                        // Add toggle functionality
-                        document.getElementById('toggleStock').addEventListener('click', () => toggleTrace(0));
-                        document.getElementById('toggleSentiment').addEventListener('click', () => toggleTrace(1));
-                        document.getElementById('toggleMA7').addEventListener('click', () => toggleTrace(2));
                     })
                     .catch(error => console.error('Error fetching sentiment data:', error));
             })
             .catch(error => console.error('Error fetching stock data:', error));
 
-        // Trace 토글 함수
-        function toggleTrace(traceIndex) {
-            visibility[traceIndex] = !visibility[traceIndex]; // 상태 토글
-            Plotly.restyle('chart', { visible: visibility[traceIndex] ? true : 'legendonly' }, [traceIndex]);
+        // Trace 토글 함수 (드롭다운용)
+        function toggleFromDropdown(traceIndex) {
+            const index = parseInt(traceIndex);
+            visibility[index] = !visibility[index];
+            Plotly.restyle('chart', { visible: visibility[index] ? true : 'legendonly' }, [index]);
         }
     </script>
 </body>
