@@ -50,6 +50,8 @@ def get_sentiment_data():
 def index():
     return render_template('index.html')
 
+import os
+
 if __name__ == '__main__':
-    # 포트를 명시적으로 설정 (예: 8080)
-    app.run(debug=True, host='0.0.0.0', port=8080)
+    port = int(os.environ.get('PORT', 8080))  # PORT 환경 변수가 없으면 8080 포트를 사용
+    app.run(debug=True, host='0.0.0.0', port=port)
